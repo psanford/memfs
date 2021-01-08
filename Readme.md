@@ -4,6 +4,7 @@ memfs is an in-memory implementation of Go's io/fs.FS interface.
 The goal is to make it easy and quick to build an fs.FS filesystem
 when you don't have any complex requirements.
 
+Documentation: https://pkg.go.dev/github.com/psanford/memfs
 
 ## Usage
 
