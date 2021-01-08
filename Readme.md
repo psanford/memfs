@@ -6,6 +6,8 @@ when you don't have any complex requirements.
 
 Documentation: https://pkg.go.dev/github.com/psanford/memfs
 
+`io/fs` docs: https://tip.golang.org/pkg/io/fs/
+
 ## Usage
 
 ```
