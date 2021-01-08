@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	iofs "io/fs"
 	"os"
 	syspath "path"
 	"strings"
@@ -37,8 +36,8 @@ func New() *FS {
 // directories that MkdirAll creates.
 // If path is already a directory, MkdirAll does nothing
 // and returns nil.
-func (fs *FS) MkdirAll(path string, perm os.FileMode) error {
-	if !iofs.ValidPath(path) {
+func (rootFS *FS) MkdirAll(path string, perm os.FileMode) error {
+	if !fs.ValidPath(path) {
 		return errors.New("Invalid path")
 	}
 
@@ -49,7 +48,7 @@ func (fs *FS) MkdirAll(path string, perm os.FileMode) error {
 
 	parts := strings.Split(path, "/")
 
-	next := fs.dir
+	next := rootFS.dir
 	for _, part := range parts {
 		cur := next
 		cur.mu.Lock()
@@ -149,8 +148,8 @@ func (fs *FS) get(path string) (childI, error) {
 	return chld, nil
 }
 
-func (fs *FS) create(path string) (*File, error) {
-	if !iofs.ValidPath(path) {
+func (rootFS *FS) create(path string) (*File, error) {
+	if !fs.ValidPath(path) {
 		return nil, errors.New("Invalid path")
 	}
 
@@ -162,7 +161,7 @@ func (fs *FS) create(path string) (*File, error) {
 	dirPart, filePart := syspath.Split(path)
 
 	dirPart = strings.TrimSuffix(dirPart, "/")
-	dir, err := fs.getDir(dirPart)
+	dir, err := rootFS.getDir(dirPart)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +189,8 @@ func (fs *FS) create(path string) (*File, error) {
 // WriteFile writes data to a file named by filename.
 // If the file does not exist, WriteFile creates it with permissions perm
 // (before umask); otherwise WriteFile truncates it before writing, without changing permissions.
-func (fs *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
-	if !iofs.ValidPath(path) {
+func (rootFS *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
+	if !fs.ValidPath(path) {
 		return errors.New("Invalid path")
 	}
 
@@ -200,7 +199,7 @@ func (fs *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 		path = ""
 	}
 
-	f, err := fs.create(path)
+	f, err := rootFS.create(path)
 	if err != nil {
 		return err
 	}
@@ -211,7 +210,7 @@ func (fs *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 
 // Open opens the named file.
 func (rootFS *FS) Open(name string) (fs.File, error) {
-	if !iofs.ValidPath(name) {
+	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{
 			Op:   "open",
 			Path: name,
