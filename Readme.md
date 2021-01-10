@@ -10,7 +10,7 @@ Documentation: https://pkg.go.dev/github.com/psanford/memfs
 
 ## Usage
 
-```
+```go
 package main
 
 import (
