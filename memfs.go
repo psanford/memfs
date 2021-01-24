@@ -75,6 +75,9 @@ func (rootFS *FS) MkdirAll(path string, perm os.FileMode) error {
 }
 
 func (fs *FS) getDir(path string) (*dir, error) {
+	if path == "" {
+		return fs.dir, nil
+	}
 	parts := strings.Split(path, "/")
 
 	cur := fs.dir

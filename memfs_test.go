@@ -64,4 +64,19 @@ func TestMemFS(t *testing.T) {
 	if diff := cmp.Diff(body, gotBody); diff != "" {
 		t.Fatalf("write/read baz.txt mismatch %s", diff)
 	}
+
+	body = []byte("top_level_file")
+	err = rootFS.WriteFile("top_level_file.txt", body, 0777)
+	if err != nil {
+		t.Fatalf("Write top_level_file error: %s", err)
+	}
+
+	gotBody, err = fs.ReadFile(rootFS, "top_level_file.txt")
+	if err != nil {
+		t.Fatalf("Read top_level_file error: %s", err)
+	}
+
+	if diff := cmp.Diff(body, gotBody); diff != "" {
+		t.Fatalf("write/read top_level_file.txt mismatch %s", diff)
+	}
 }
