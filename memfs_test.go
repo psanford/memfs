@@ -1,6 +1,7 @@
 package memfs
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"testing"
@@ -41,12 +42,12 @@ func TestMemFS(t *testing.T) {
 	}
 
 	err = rootFS.WriteFile("foo/baz/buz.txt", []byte("buz"), 0777)
-	if err == nil {
+	if err == nil && errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Expected missing directory error but got none")
 	}
 
 	_, err = fs.ReadFile(rootFS, "foo/baz/buz.txt")
-	if err == nil {
+	if err == nil && errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("Expected no such file but got no error")
 	}
 
