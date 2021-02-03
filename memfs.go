@@ -20,13 +20,11 @@ type FS struct {
 
 // New creates a new in-memory FileSystem.
 func New() *FS {
-	fs := &FS{
+	return &FS{
 		dir: &dir{
 			children: make(map[string]childI),
 		},
 	}
-
-	return fs
 }
 
 // MkdirAll creates a directory named path,
@@ -38,7 +36,7 @@ func New() *FS {
 // and returns nil.
 func (rootFS *FS) MkdirAll(path string, perm os.FileMode) error {
 	if !fs.ValidPath(path) {
-		return errors.New("Invalid path")
+		return fmt.Errorf("invalid path: %s: %w", path, fs.ErrInvalid)
 	}
 
 	if path == "." {
@@ -64,7 +62,7 @@ func (rootFS *FS) MkdirAll(path string, perm os.FileMode) error {
 		} else {
 			childDir, ok := child.(*dir)
 			if !ok {
-				return fmt.Errorf("%s is not a directory", part)
+				return fmt.Errorf("not a directory: %s: %w", part, fs.ErrInvalid)
 			}
 			next = childDir
 		}
@@ -74,24 +72,24 @@ func (rootFS *FS) MkdirAll(path string, perm os.FileMode) error {
 	return nil
 }
 
-func (fs *FS) getDir(path string) (*dir, error) {
+func (rootFS *FS) getDir(path string) (*dir, error) {
 	if path == "" {
-		return fs.dir, nil
+		return rootFS.dir, nil
 	}
 	parts := strings.Split(path, "/")
 
-	cur := fs.dir
+	cur := rootFS.dir
 	for _, part := range parts {
 		err := func() error {
 			cur.mu.Lock()
 			defer cur.mu.Unlock()
 			child := cur.children[part]
 			if child == nil {
-				return errors.New("no such file or directory")
+				return fmt.Errorf("not a directory: %s: %w", part, fs.ErrNotExist)
 			} else {
 				childDir, ok := child.(*dir)
 				if !ok {
-					return errors.New("not a directory")
+					return fmt.Errorf("no such file or directory: %s: %w", part, fs.ErrNotExist)
 				}
 				cur = childDir
 			}
@@ -105,15 +103,15 @@ func (fs *FS) getDir(path string) (*dir, error) {
 	return cur, nil
 }
 
-func (fs *FS) get(path string) (childI, error) {
+func (rootFS *FS) get(path string) (childI, error) {
 	if path == "" {
-		return fs.dir, nil
+		return rootFS.dir, nil
 	}
 
 	parts := strings.Split(path, "/")
 
 	var (
-		cur = fs.dir
+		cur = rootFS.dir
 
 		chld childI
 		err  error
@@ -124,14 +122,14 @@ func (fs *FS) get(path string) (childI, error) {
 			defer cur.mu.Unlock()
 			child := cur.children[part]
 			if child == nil {
-				return nil, errors.New("no such file or directory")
+				return nil, fmt.Errorf("not a directory: %s: %w", part, fs.ErrNotExist)
 			} else {
 				_, isFile := child.(*File)
 				if isFile {
 					if i == len(parts)-1 {
 						return child, nil
 					} else {
-						return nil, errors.New("not a directory")
+						return nil, fmt.Errorf("no such file or directory: %s: %w", part, fs.ErrNotExist)
 					}
 				}
 
@@ -153,7 +151,7 @@ func (fs *FS) get(path string) (childI, error) {
 
 func (rootFS *FS) create(path string) (*File, error) {
 	if !fs.ValidPath(path) {
-		return nil, errors.New("Invalid path")
+		return nil, fmt.Errorf("invalid path: %s: %w", path, fs.ErrInvalid)
 	}
 
 	if path == "." {
@@ -175,7 +173,7 @@ func (rootFS *FS) create(path string) (*File, error) {
 	if existing != nil {
 		_, ok := existing.(*File)
 		if !ok {
-			return nil, errors.New("path is a directory")
+			return nil, fmt.Errorf("path is a directory: %s: %w", path, fs.ErrExist)
 		}
 	}
 
@@ -194,7 +192,7 @@ func (rootFS *FS) create(path string) (*File, error) {
 // (before umask); otherwise WriteFile truncates it before writing, without changing permissions.
 func (rootFS *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 	if !fs.ValidPath(path) {
-		return errors.New("Invalid path")
+		return fmt.Errorf("invalid path: %s: %w", path, fs.ErrInvalid)
 	}
 
 	if path == "." {
@@ -246,7 +244,7 @@ func (rootFS *FS) Open(name string) (fs.File, error) {
 		return handle, nil
 	}
 
-	return nil, errors.New("Unexpected file type in fs")
+	return nil, fmt.Errorf("unexpected file type in fs: %s: %w", name, fs.ErrInvalid)
 }
 
 type dir struct {
@@ -333,7 +331,7 @@ type File struct {
 
 func (f *File) Stat() (fs.FileInfo, error) {
 	if f.closed {
-		return nil, errors.New("file closed")
+		return nil, fs.ErrClosed
 	}
 	fi := fileInfo{
 		name:    f.name,
@@ -346,14 +344,14 @@ func (f *File) Stat() (fs.FileInfo, error) {
 
 func (f *File) Read(b []byte) (int, error) {
 	if f.closed {
-		return 0, errors.New("file closed")
+		return 0, fs.ErrClosed
 	}
 	return f.content.Read(b)
 }
 
 func (f *File) Close() error {
 	if f.closed {
-		return errors.New("file closed")
+		return fs.ErrClosed
 	}
 	f.closed = true
 	return nil
