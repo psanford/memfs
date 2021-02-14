@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	syspath "path"
@@ -296,6 +297,20 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 		names = append(names, name)
 	}
 
+	// directory already exhausted
+	if n <= 0 && d.idx >= len(names) {
+		return nil, nil
+	}
+
+	// read till end
+	var err error
+	if n > 0 && d.idx+n > len(names) {
+		err = io.EOF
+		if d.dirOffset > len(names) {
+			return nil, err
+		}
+	}
+
 	if n <= 0 {
 		n = len(names)
 	}
@@ -325,9 +340,10 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 			})
 		}
 
-		d.idx = i
+		d.idx = i + 1
 	}
-	return out, nil
+
+	return out, err
 }
 
 type File struct {
@@ -419,7 +435,7 @@ func (de *dirEntry) IsDir() bool {
 }
 
 func (de *dirEntry) Type() fs.FileMode {
-	return de.info.Mode()
+	return de.info.Mode() & fs.ModeType
 }
 
 func (de *dirEntry) Info() (fs.FileInfo, error) {
