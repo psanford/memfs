@@ -299,7 +299,7 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 	var err error
 	if n > 0 && d.idx+n > len(names) {
 		err = io.EOF
-		if d.dirOffset > len(names) {
+		if d.idx > len(names) {
 			return nil, err
 		}
 	}
