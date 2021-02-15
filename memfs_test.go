@@ -5,9 +5,26 @@ import (
 	"fmt"
 	"io/fs"
 	"testing"
+	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 )
+
+func TestFS(t *testing.T) {
+	rootFS := New()
+	err := rootFS.MkdirAll("foo/bar", 0777)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = rootFS.WriteFile("foo/bar/buz.txt", []byte("buz"), 0777)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = fstest.TestFS(rootFS, "foo/bar/buz.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestMemFS(t *testing.T) {
 
