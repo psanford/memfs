@@ -349,6 +349,13 @@ func (f *File) Read(b []byte) (int, error) {
 	return f.content.Read(b)
 }
 
+func (f *File) Write(b []byte) (int, error) {
+	if f.closed {
+		return 0, fs.ErrClosed
+	}
+	return f.content.Write(b)
+}
+
 func (f *File) Close() error {
 	if f.closed {
 		return fs.ErrClosed
