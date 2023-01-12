@@ -247,6 +247,15 @@ func (rootFS *FS) Open(name string) (fs.File, error) {
 	return nil, fmt.Errorf("unexpected file type in fs: %s: %w", name, fs.ErrInvalid)
 }
 
+// Sub returns an FS corresponding to the subtree rooted at path.
+func (rootFS *FS) Sub(path string) (fs.FS, error) {
+	dir, err := rootFS.getDir(path)
+	if err != nil {
+		return nil, err
+	}
+	return &FS{dir: dir}, nil
+}
+
 type dir struct {
 	mu       sync.Mutex
 	name     string
