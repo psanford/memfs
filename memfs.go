@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	syspath "path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -206,6 +207,52 @@ func (rootFS *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 	}
 	f.content = bytes.NewBuffer(data)
 	f.perm = perm
+	return nil
+}
+
+// Removes a given path, essentially a remove all
+func (rootFS *FS) Remove(name string) error {
+	if !fs.ValidPath(name) {
+		return &fs.PathError{
+			Op:   "remove",
+			Path: name,
+			Err:  fs.ErrInvalid,
+		}
+	}
+
+	if name == "." {
+		// root dir then just reset the rootfs
+		rootFS.dir.mu.Lock()
+		rootFS.dir.children = make(map[string]childI)
+		rootFS.dir.mu.Unlock()
+		return nil
+	}
+
+	//excute a get just to make sure this path exists and determine if exists
+	if _, err := rootFS.get(name); err != nil {
+		return err //the path doesn't exist or something else is wrong
+	}
+
+	//child exists, go ahead and get the parent path
+	dpth, fpth := filepath.Split(filepath.Clean(name))
+	if fpth == `` {
+		//this shouldn't really happy, but, sure, bail
+		return nil
+	}
+	//go get a handle on the dir
+	child, err := rootFS.get(filepath.Clean(dpth))
+	if err != nil {
+		//this DEFINITELY shouldn't happen, but handle it
+		return err
+	}
+	dptr, ok := child.(*dir)
+	if !ok {
+		return fmt.Errorf("unexpected file type in fs: %s: %w", name, fs.ErrInvalid)
+	}
+	//go ahead and delete the fpth from the child
+	dptr.mu.Lock()
+	delete(dptr.children, fpth)
+	dptr.mu.Unlock()
 	return nil
 }
 
