@@ -12,6 +12,7 @@ import (
 
 func TestFS(t *testing.T) {
 	rootFS := New()
+
 	err := rootFS.MkdirAll("foo/bar", 0777)
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +28,6 @@ func TestFS(t *testing.T) {
 }
 
 func TestMemFS(t *testing.T) {
-
 	rootFS := New()
 
 	err := rootFS.MkdirAll("foo/bar", 0777)
@@ -110,5 +110,46 @@ func TestMemFS(t *testing.T) {
 
 	if diff := cmp.Diff(body, gotBody); diff != "" {
 		t.Fatalf("write/read top_level_file.txt mismatch %s", diff)
+	}
+}
+
+func TestOpenHook(t *testing.T) {
+	openHook := func(path string, content []byte, origError error) ([]byte, error) {
+		if path == "foo/bar/override" {
+			return []byte("overriden content"), nil
+		}
+
+		return content, origError
+	}
+
+	rootFS := New(WithOpenHook(openHook))
+
+	err := rootFS.MkdirAll("foo/bar", 0777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rootFS.WriteFile("foo/bar/f1", []byte("f1"), 0777)
+	rootFS.WriteFile("foo/bar/override", []byte("orig content"), 0777)
+
+	content, err := fs.ReadFile(rootFS, "foo/bar/f1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(string(content), "f1"); diff != "" {
+		t.Fatalf("write/read roo/bar/f1 mismatch %s", diff)
+	}
+
+	content, err = fs.ReadFile(rootFS, "foo/bar/override")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(string(content), "overriden content"); diff != "" {
+		t.Fatalf("hook read mismatch %s", diff)
+	}
+
+	_, err = fs.ReadFile(rootFS, "foo/bar/non_existing_file")
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Expected ErrNotExist for non-existing file, got: %v", err)
 	}
 }

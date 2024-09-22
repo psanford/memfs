@@ -16,16 +16,25 @@ import (
 // FS is an in-memory filesystem that implements
 // io/fs.FS
 type FS struct {
-	dir *dir
+	dir      *dir
+	openHook func(path string, existingContent []byte, origErr error) ([]byte, error)
 }
 
 // New creates a new in-memory FileSystem.
-func New() *FS {
-	return &FS{
+func New(opts ...Option) *FS {
+	var fsOpt fsOption
+	for _, opt := range opts {
+		opt.setOption(&fsOpt)
+	}
+	fs := FS{
 		dir: &dir{
 			children: make(map[string]childI),
 		},
 	}
+
+	fs.openHook = fsOpt.openHook
+
+	return &fs
 }
 
 // MkdirAll creates a directory named path,
@@ -220,6 +229,32 @@ func (rootFS *FS) Open(name string) (fs.File, error) {
 		}
 	}
 
+	child, err := rootFS.open(name)
+	if rootFS.openHook != nil {
+		var exitingContent []byte
+		if child != nil {
+			stat, _ := child.Stat()
+			if stat.Mode().IsDir() {
+				return child, err
+			}
+
+			exitingContent, err = io.ReadAll(child)
+			if err != nil {
+				return nil, err
+			}
+			newContent, err := rootFS.openHook(name, exitingContent, err)
+			if err != nil {
+				return nil, err
+			}
+			f := child.(*File)
+			f.content = bytes.NewBuffer(newContent)
+			return f, nil
+		}
+	}
+	return child, err
+}
+
+func (rootFS *FS) open(name string) (fs.File, error) {
 	if name == "." {
 		// root dir
 		name = ""
