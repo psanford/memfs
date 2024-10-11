@@ -188,9 +188,8 @@ func (rootFS *FS) create(path string) (*File, error) {
 	}
 
 	newFile := &File{
-		name:    filePart,
-		perm:    0666,
-		content: &bytes.Buffer{},
+		name: filePart,
+		perm: 0666,
 	}
 	dir.children[filePart] = newFile
 
@@ -214,7 +213,7 @@ func (rootFS *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	f.content = bytes.NewBuffer(data)
+	f.content = data
 	f.perm = perm
 	return nil
 }
@@ -247,7 +246,8 @@ func (rootFS *FS) Open(name string) (fs.File, error) {
 				return nil, err
 			}
 			f := child.(*File)
-			f.content = bytes.NewBuffer(newContent)
+			f.content = newContent
+			f.reader = bytes.NewReader(newContent)
 			return f, nil
 		}
 	}
@@ -270,7 +270,8 @@ func (rootFS *FS) open(name string) (fs.File, error) {
 		handle := &File{
 			name:    cc.name,
 			perm:    cc.perm,
-			content: bytes.NewBuffer(cc.content.Bytes()),
+			content: cc.content,
+			reader:  bytes.NewReader(cc.content),
 		}
 		return handle, nil
 	case *dir:
@@ -384,7 +385,8 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 type File struct {
 	name    string
 	perm    os.FileMode
-	content *bytes.Buffer
+	content []byte
+	reader  *bytes.Reader
 	modTime time.Time
 	closed  bool
 }
@@ -395,7 +397,7 @@ func (f *File) Stat() (fs.FileInfo, error) {
 	}
 	fi := fileInfo{
 		name:    f.name,
-		size:    int64(f.content.Len()),
+		size:    int64(len(f.content)),
 		modTime: f.modTime,
 		mode:    f.perm,
 	}
@@ -406,7 +408,15 @@ func (f *File) Read(b []byte) (int, error) {
 	if f.closed {
 		return 0, fs.ErrClosed
 	}
-	return f.content.Read(b)
+	return f.reader.Read(b)
+}
+
+func (f *File) Seek(offset int64, whence int) (int64, error) {
+	if f.closed {
+		return 0, fs.ErrClosed
+	}
+
+	return f.reader.Seek(offset, whence)
 }
 
 func (f *File) Close() error {
@@ -417,8 +427,7 @@ func (f *File) Close() error {
 	return nil
 }
 
-type childI interface {
-}
+type childI interface{}
 
 type fileInfo struct {
 	name    string
