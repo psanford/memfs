@@ -381,10 +381,12 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 	return out, err
 }
 
+// File should not be shared among multiple Opens.
 type File struct {
 	name    string
 	perm    os.FileMode
 	content *bytes.Buffer
+	reader  io.ReadSeeker
 	modTime time.Time
 	closed  bool
 }
@@ -402,11 +404,28 @@ func (f *File) Stat() (fs.FileInfo, error) {
 	return &fi, nil
 }
 
+func (f *File) Seek(offset int64, whence int) (int64, error) {
+	if f.closed {
+		return 0, fs.ErrClosed
+	}
+
+	if f.reader == nil {
+		f.reader = bytes.NewReader(f.content.Bytes())
+	}
+
+	return f.reader.Seek(offset, whence)
+}
+
 func (f *File) Read(b []byte) (int, error) {
 	if f.closed {
 		return 0, fs.ErrClosed
 	}
-	return f.content.Read(b)
+
+	if f.reader == nil {
+		f.reader = bytes.NewReader(f.content.Bytes())
+	}
+
+	return f.reader.Read(b)
 }
 
 func (f *File) Close() error {

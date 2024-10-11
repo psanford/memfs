@@ -3,6 +3,7 @@ package memfs
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -151,5 +152,70 @@ func TestOpenHook(t *testing.T) {
 	_, err = fs.ReadFile(rootFS, "foo/bar/non_existing_file")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Expected ErrNotExist for non-existing file, got: %v", err)
+	}
+}
+
+func TestSeek(t *testing.T) {
+	rootFS := New()
+
+	err := rootFS.WriteFile("foo", []byte("0123456789"), 0777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := rootFS.Open("foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seeker, ok := f.(io.Seeker)
+	if !ok {
+		t.Fatalf("File does not implement io.Seeker")
+	}
+
+	// Read first bytes.
+	bs := make([]byte, 3)
+	n, err := f.Read(bs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("Expected 3 bytes read, got %d", n)
+	}
+	if diff := cmp.Diff(bs, []byte("012")); diff != "" {
+		t.Fatalf("read mismatch %s", diff)
+	}
+
+	// Read more bytes, make sure reader tracks.
+	n, err = f.Read(bs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("Expected 3 bytes read, got %d", n)
+	}
+	if diff := cmp.Diff(bs, []byte("345")); diff != "" {
+		t.Fatalf("read mismatch %s", diff)
+	}
+
+	// Seek to beginning.
+	ofs, err := seeker.Seek(0, io.SeekStart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ofs != 0 {
+		t.Fatalf("Expected offset 0, got %d", ofs)
+	}
+
+	// Read first bytes again.
+	n, err = f.Read(bs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("Expected 3 bytes read, got %d", n)
+	}
+	if diff := cmp.Diff(bs, []byte("012")); diff != "" {
+		t.Fatalf("read mismatch %s", diff)
 	}
 }
