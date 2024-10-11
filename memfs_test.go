@@ -14,11 +14,11 @@ import (
 func TestFS(t *testing.T) {
 	rootFS := New()
 
-	err := rootFS.MkdirAll("foo/bar", 0777)
+	err := rootFS.MkdirAll("foo/bar", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = rootFS.WriteFile("foo/bar/buz.txt", []byte("buz"), 0777)
+	err = rootFS.WriteFile("foo/bar/buz.txt", []byte("buz"), 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestFS(t *testing.T) {
 func TestMemFS(t *testing.T) {
 	rootFS := New()
 
-	err := rootFS.MkdirAll("foo/bar", 0777)
+	err := rootFS.MkdirAll("foo/bar", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestMemFS(t *testing.T) {
 		t.Fatalf("WalkDir mismatch %s", diff)
 	}
 
-	err = rootFS.WriteFile("foo/baz/buz.txt", []byte("buz"), 0777)
+	err = rootFS.WriteFile("foo/baz/buz.txt", []byte("buz"), 0o777)
 	if err == nil && errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Expected missing directory error but got none")
 	}
@@ -70,7 +70,7 @@ func TestMemFS(t *testing.T) {
 	}
 
 	body := []byte("baz")
-	err = rootFS.WriteFile("foo/bar/baz.txt", body, 0777)
+	err = rootFS.WriteFile("foo/bar/baz.txt", body, 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestMemFS(t *testing.T) {
 	}
 
 	body = []byte("top_level_file")
-	err = rootFS.WriteFile("top_level_file.txt", body, 0777)
+	err = rootFS.WriteFile("top_level_file.txt", body, 0o777)
 	if err != nil {
 		t.Fatalf("Write top_level_file error: %s", err)
 	}
@@ -125,13 +125,13 @@ func TestOpenHook(t *testing.T) {
 
 	rootFS := New(WithOpenHook(openHook))
 
-	err := rootFS.MkdirAll("foo/bar", 0777)
+	err := rootFS.MkdirAll("foo/bar", 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rootFS.WriteFile("foo/bar/f1", []byte("f1"), 0777)
-	rootFS.WriteFile("foo/bar/override", []byte("orig content"), 0777)
+	rootFS.WriteFile("foo/bar/f1", []byte("f1"), 0o777)
+	rootFS.WriteFile("foo/bar/override", []byte("orig content"), 0o777)
 
 	content, err := fs.ReadFile(rootFS, "foo/bar/f1")
 	if err != nil {
@@ -158,7 +158,7 @@ func TestOpenHook(t *testing.T) {
 func TestSeek(t *testing.T) {
 	rootFS := New()
 
-	err := rootFS.WriteFile("foo", []byte("0123456789"), 0777)
+	err := rootFS.WriteFile("foo", []byte("0123456789"), 0o777)
 	if err != nil {
 		t.Fatal(err)
 	}

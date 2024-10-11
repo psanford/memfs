@@ -188,9 +188,9 @@ func (rootFS *FS) create(path string) (*File, error) {
 	}
 
 	newFile := &File{
-		name:    filePart,
-		perm:    0666,
-		content: &bytes.Buffer{},
+		name:   filePart,
+		perm:   0o666,
+		reader: bytes.NewReader(nil),
 	}
 	dir.children[filePart] = newFile
 
@@ -214,7 +214,8 @@ func (rootFS *FS) WriteFile(path string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	f.content = bytes.NewBuffer(data)
+	f.reader = bytes.NewReader(data)
+	f.size = int64(len(data))
 	f.perm = perm
 	return nil
 }
@@ -247,11 +248,28 @@ func (rootFS *FS) Open(name string) (fs.File, error) {
 				return nil, err
 			}
 			f := child.(*File)
-			f.content = bytes.NewBuffer(newContent)
+			f.reader = bytes.NewReader(newContent)
+			f.size = int64(len(newContent))
 			return f, nil
 		}
 	}
 	return child, err
+}
+
+func (f *File) cloneReader() io.ReadSeeker {
+	f.readerLock.Lock()
+	defer f.readerLock.Unlock()
+
+	content, err := io.ReadAll(f.reader)
+	if err != nil {
+		panic(err)
+	}
+
+	if ofs, err := f.reader.Seek(0, io.SeekStart); err != nil || ofs != 0 {
+		panic(fmt.Errorf("seek failed: %w %d", err, ofs))
+	}
+
+	return bytes.NewReader(content)
 }
 
 func (rootFS *FS) open(name string) (fs.File, error) {
@@ -268,9 +286,10 @@ func (rootFS *FS) open(name string) (fs.File, error) {
 	switch cc := child.(type) {
 	case *File:
 		handle := &File{
-			name:    cc.name,
-			perm:    cc.perm,
-			content: bytes.NewBuffer(cc.content.Bytes()),
+			name:   cc.name,
+			perm:   cc.perm,
+			reader: cc.cloneReader(),
+			size:   cc.size,
 		}
 		return handle, nil
 	case *dir:
@@ -383,12 +402,13 @@ func (d *fhDir) ReadDir(n int) ([]fs.DirEntry, error) {
 
 // File should not be shared among multiple Opens.
 type File struct {
-	name    string
-	perm    os.FileMode
-	content *bytes.Buffer
-	reader  io.ReadSeeker
-	modTime time.Time
-	closed  bool
+	name       string
+	perm       os.FileMode
+	reader     io.ReadSeeker
+	readerLock sync.RWMutex
+	size       int64
+	modTime    time.Time
+	closed     bool
 }
 
 func (f *File) Stat() (fs.FileInfo, error) {
@@ -397,7 +417,7 @@ func (f *File) Stat() (fs.FileInfo, error) {
 	}
 	fi := fileInfo{
 		name:    f.name,
-		size:    int64(f.content.Len()),
+		size:    f.size,
 		modTime: f.modTime,
 		mode:    f.perm,
 	}
@@ -409,9 +429,8 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		return 0, fs.ErrClosed
 	}
 
-	if f.reader == nil {
-		f.reader = bytes.NewReader(f.content.Bytes())
-	}
+	f.readerLock.RLock()
+	defer f.readerLock.RUnlock()
 
 	return f.reader.Seek(offset, whence)
 }
@@ -421,9 +440,8 @@ func (f *File) Read(b []byte) (int, error) {
 		return 0, fs.ErrClosed
 	}
 
-	if f.reader == nil {
-		f.reader = bytes.NewReader(f.content.Bytes())
-	}
+	f.readerLock.RLock()
+	defer f.readerLock.RUnlock()
 
 	return f.reader.Read(b)
 }
@@ -436,8 +454,7 @@ func (f *File) Close() error {
 	return nil
 }
 
-type childI interface {
-}
+type childI interface{}
 
 type fileInfo struct {
 	name    string
